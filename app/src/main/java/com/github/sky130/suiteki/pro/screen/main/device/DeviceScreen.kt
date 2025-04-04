@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.unit.dp
 import com.github.sky130.suiteki.pro.MainApplication.Companion.context
 import com.github.sky130.suiteki.pro.MainApplication.Companion.toast
@@ -63,10 +64,12 @@ import com.github.sky130.suiteki.pro.util.TextUtils
 import com.github.sky130.suiteki.pro.util.ZipUtils
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.generated.destinations.FolderScreenDestination
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,125 +143,15 @@ fun ScanLogDialog(state: DialogState) {
     }, confirmButton = {
         TextButton(onClick = {
             "开始扫描".toast()
-            scope.launch(Dispatchers.IO) {
-                File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    "wearablelog"
-                ).let {
-                    var time = 0L
-                    it.listFiles { _, name ->
-                        name.endsWith("log.zip")
-                    }?.forEach { file ->
-                        if (!file.isFile) return@forEach
-                        file.nameWithoutExtension.replace("log", "").toLong().let { let ->
-                            if (time < let) {
-                                time = let
-                            }
-                        }
-                    }
-                    if (time == 0L) {
-                        return@launch withContext(Dispatchers.Main) { "加载失败，日志压缩包不存在".toast() }
-                    }
-                    val latestLogFile = File(it, "${time}log.zip")
-                    latestLogFile?.let {
-                        val text = ZipUtils.extractFrom(
-                            it, "XiaomiFit.device.log"
-                        )
-                            ?: return@launch withContext(Dispatchers.Main) { "加载失败，日志文件不存在".toast() }
-                        val deviceList = arrayListOf<Device>()
-                        for (i in text.split("\n")) {
-                            val mac = TextUtils.getRegexMatchText(i, "mac=", ", ")
-                            if (mac.isEmpty() || mac.length < 15) continue
-                            val authKey = TextUtils.getRegexMatchText(i, "authKey=", ", ")
-                            val model = TextUtils.getRegexMatchText(i, "model='", "', ")
-                            val encryptKey = TextUtils.getRegexMatchText(i, "encryptKey=", ", ")
-                            val end = mac.substring(12, 14) + mac.substring(15)
-                            when (model) {
-                                "miwear.watch.m66",
-                                "miwear.watch.m66nfc",
-                                "miwear.watch.m66tc",
-                                "miwear.watch.m66dsn",
-                                "miwear.watch.m66gl",
-                                "miwear.watch.m66gln" -> {
-                                    deviceList.add(
-                                        Device(
-                                            "Xiaomi Smart Band 8 $end",
-                                            mac,
-                                            encryptKey
-                                        )
-                                    )
-                                }
-
-                                "lchz.watch.m67",
-                                "lchz.watch.m67gl",
-                                "lchz.watch.m67ys" -> {
-                                    deviceList.add(
-                                        Device(
-                                            "Xiaomi Smart Band 8 Pro $end",
-                                            mac,
-                                            encryptKey
-                                        )
-                                    )
-                                }
-
-                                "hmpace.watch.v7",
-                                "hmpace.watch.v7nfc" -> {
-                                    deviceList.add(
-                                        Device(
-                                            "Xiaomi Smart Band 7 $end",
-                                            mac,
-                                            authKey
-                                        )
-                                    )
-                                }
-
-                                "lchz.watch.n65",
-                                "lchz.watch.n65gl" -> {
-                                    deviceList.add(
-                                        Device(
-                                            "Redmi Watch 4 $end",
-                                            mac,
-                                            encryptKey
-                                        )
-                                    )
-                                }
-
-
-                                "lchz.watch.n65acn",
-                                "lchz.watch.n65agl",
-                                "lchz.watch.n65ain" -> {
-                                    deviceList.add(
-                                        Device(
-                                            "Redmi Watch 4 $end Active",
-                                            mac,
-                                            encryptKey
-                                        )
-                                    )
-                                }
-
-                                "mijia.watch.n62,",
-                                "mjjia.watch.n62lte",
-                                "mijia.watch.n62cg" -> {
-                                    deviceList.add(
-                                        Device(
-                                            "Xiaomi Watch S3 $end Active",
-                                            mac,
-                                            encryptKey
-                                        )
-                                    )
-                                }
-
-                            }
-                        }
-                        AppDatabase.instance.device().insert(deviceList)
-                    }
-                }
-                withContext(Dispatchers.Main) {
-                    "扫描完成".toast()
-                }
-            }
+            scanLog(scope, MI_FITNESS)
         }) {
-            Text(text = "扫描")
+            Text(text = "从小米运动健康扫描")
+        }
+        TextButton(onClick = {
+            "开始扫描".toast()
+            scanLog(scope, MI_RESEARCH)
+        }) {
+            Text(text = "从小米健康研究扫描")
         }
 
     }, dismissButton = {
@@ -290,6 +183,144 @@ fun ScanLogDialog(state: DialogState) {
             }
         }
     })
+}
+private const val MI_FITNESS=0
+private const val MI_RESEARCH=1
+private fun scanLog(scope: CoroutineScope , type:Int) {
+    scope.launch(Dispatchers.IO) {
+        File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            if (type == MI_RESEARCH) "ResearchLog" else "wearablelog"
+        ).let {
+            var time = 0L
+            it.listFiles { _, name ->
+                name.endsWith(".zip")
+            }?.forEach { file ->
+                if (!file.isFile) return@forEach
+                file.nameWithoutExtension.replace("research-", "").replace("log", "").toLong().let { let ->
+                    if (time < let) {
+                        time = let
+                    }
+                }
+            }
+            if (time == 0L) {
+                return@launch withContext(Dispatchers.Main) { "加载失败，日志压缩包不存在".toast() }
+            }
+            val fileName = if (type == MI_RESEARCH) "research-$time.zip" else "${time}log.zip"
+            val latestLogFile = File(it,fileName )
+            latestLogFile.let {
+                val text = ZipUtils.extractFrom(
+                    it, /*if (type == MI_RESEARCH) */"XiaomiFit.main.log"/* else "XiaomiFit.device.log"*/
+                )
+                    ?: return@launch withContext(Dispatchers.Main) { "加载失败，日志文件不存在".toast() }
+                val deviceList = arrayListOf<Device>()
+                for (i in text.split("\n")) {
+                    fun scanMiFitness() {
+                        val mac = TextUtils.getRegexMatchText(i, "mac=", ", ")
+                        if (mac.isEmpty() || mac.length < 15) return
+                        val authKey = TextUtils.getRegexMatchText(i, "authKey=", ", ")
+                        val model = TextUtils.getRegexMatchText(i, "model='", "', ")
+                        val encryptKey = TextUtils.getRegexMatchText(i, "encryptKey=", ", ")
+                        val end = mac.substring(12, 14) + mac.substring(15)
+                        when (model) {
+                            "miwear.watch.m66",
+                            "miwear.watch.m66nfc",
+                            "miwear.watch.m66tc",
+                            "miwear.watch.m66dsn",
+                            "miwear.watch.m66gl",
+                            "miwear.watch.m66gln" -> {
+                                deviceList.add(
+                                    Device(
+                                        "Xiaomi Smart Band 8 $end",
+                                        mac,
+                                        encryptKey
+                                    )
+                                )
+                            }
+
+                            "lchz.watch.m67",
+                            "lchz.watch.m67gl",
+                            "lchz.watch.m67ys" -> {
+                                deviceList.add(
+                                    Device(
+                                        "Xiaomi Smart Band 8 Pro $end",
+                                        mac,
+                                        encryptKey
+                                    )
+                                )
+                            }
+
+                            "hmpace.watch.v7",
+                            "hmpace.watch.v7nfc" -> {
+                                deviceList.add(
+                                    Device(
+                                        "Xiaomi Smart Band 7 $end",
+                                        mac,
+                                        authKey
+                                    )
+                                )
+                            }
+
+                            "lchz.watch.n65",
+                            "lchz.watch.n65gl" -> {
+                                deviceList.add(
+                                    Device(
+                                        "Redmi Watch 4 $end",
+                                        mac,
+                                        encryptKey
+                                    )
+                                )
+                            }
+
+
+                            "lchz.watch.n65acn",
+                            "lchz.watch.n65agl",
+                            "lchz.watch.n65ain" -> {
+                                deviceList.add(
+                                    Device(
+                                        "Redmi Watch 4 $end Active",
+                                        mac,
+                                        encryptKey
+                                    )
+                                )
+                            }
+
+                            "mijia.watch.n62,",
+                            "mjjia.watch.n62lte",
+                            "mijia.watch.n62cg" -> {
+                                deviceList.add(
+                                    Device(
+                                        "Xiaomi Watch S3 $end Active",
+                                        mac,
+                                        encryptKey
+                                    )
+                                )
+                            }
+
+                        }
+                    }
+                    fun scanMiResearch(){
+                        val did = TextUtils.getRegexMatchText(i, "did:", " ,")
+                        val encryptKey = TextUtils.getRegexMatchText(i, "deviceKey:", ",").trim()
+                        if (did.isEmpty()||encryptKey.isEmpty()) return
+                        deviceList.add(
+                            Device(
+                                did,
+                                mac="请自行补充MAC!",
+                                encryptKey
+                            )
+                        )
+                    }
+                    if (type == MI_RESEARCH) scanMiResearch()
+                    else scanMiFitness()
+                }
+                AppDatabase.instance.device().insert(deviceList)
+            }
+        }
+        withContext(Dispatchers.Main) {
+            "扫描完成".toast()
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -376,7 +407,7 @@ fun DeviceEditDialog(dialogState: DialogState, device: Device) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             TextField(value = name, onValueChange = { name = it }, label = { Text("设备名") })
             TextField(value = mac,
-                onValueChange = { mac = it.replace("：", ":") },
+                onValueChange = { mac = it.replace("：", ":").uppercase(Locale.ROOT) },
                 label = { Text("MAC地址") })
             TextField(value = key, onValueChange = { key = it }, label = { Text("密钥") })
         }
