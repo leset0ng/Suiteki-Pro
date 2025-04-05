@@ -1,69 +1,26 @@
 package com.github.sky130.suiteki.pro.screen.main.device
 
 import android.os.Environment
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Circle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Watch
-import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material.icons.outlined.Error
-import androidx.compose.material.icons.outlined.Terrain
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.unit.dp
-import com.github.sky130.suiteki.pro.MainApplication.Companion.context
 import com.github.sky130.suiteki.pro.MainApplication.Companion.toast
 import com.github.sky130.suiteki.pro.logic.ble.SuitekiManager
-import com.github.sky130.suiteki.pro.logic.ble.SuitekiManager.waitForAuth
 import com.github.sky130.suiteki.pro.logic.database.AppDatabase
 import com.github.sky130.suiteki.pro.logic.database.model.Device
 import com.github.sky130.suiteki.pro.screen.main.MainGraph
-import com.github.sky130.suiteki.pro.screen.main.more.AppCard
-import com.github.sky130.suiteki.pro.ui.widget.BaseSuitekiDialog
-import com.github.sky130.suiteki.pro.ui.widget.DialogState
-import com.github.sky130.suiteki.pro.ui.widget.SuitekiScaffold
-import com.github.sky130.suiteki.pro.ui.widget.SuitekiDialog
-import com.github.sky130.suiteki.pro.ui.widget.SuitekiTopBar
-import com.github.sky130.suiteki.pro.ui.widget.rememberDialogState
+import com.github.sky130.suiteki.pro.ui.widget.*
 import com.github.sky130.suiteki.pro.util.TextUtils
 import com.github.sky130.suiteki.pro.util.ZipUtils
 import com.ramcosta.composedestinations.annotation.Destination
-import com.ramcosta.composedestinations.generated.destinations.FolderScreenDestination
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -191,9 +148,9 @@ private fun scanLog(scope: CoroutineScope , type:Int) {
         File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             if (type == MI_RESEARCH) "ResearchLog" else "wearablelog"
-        ).let {
+        ).let { files ->
             var time = 0L
-            it.listFiles { _, name ->
+            files.listFiles { _, name ->
                 name.endsWith(".zip")
             }?.forEach { file ->
                 if (!file.isFile) return@forEach
@@ -207,7 +164,7 @@ private fun scanLog(scope: CoroutineScope , type:Int) {
                 return@launch withContext(Dispatchers.Main) { "加载失败，日志压缩包不存在".toast() }
             }
             val fileName = if (type == MI_RESEARCH) "research-$time.zip" else "${time}log.zip"
-            val latestLogFile = File(it,fileName )
+            val latestLogFile = File(files,fileName )
             latestLogFile.let {
                 val text = ZipUtils.extractFrom(
                     it, /*if (type == MI_RESEARCH) */"XiaomiFit.main.log"/* else "XiaomiFit.device.log"*/
@@ -323,7 +280,6 @@ private fun scanLog(scope: CoroutineScope , type:Int) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceAddDialog(dialogState: DialogState, scanDialogState: DialogState) {
     val scope = rememberCoroutineScope()
@@ -368,7 +324,7 @@ fun DeviceAddDialog(dialogState: DialogState, scanDialogState: DialogState) {
                 ) {
                     Text("通过小米运动健康添加", modifier = Modifier.align(Alignment.CenterStart))
                     Icon(
-                        Icons.Default.ArrowForward,
+                        Icons.AutoMirrored.Filled.ArrowForward,
                         null,
                         modifier = Modifier.align(Alignment.CenterEnd)
                     )
